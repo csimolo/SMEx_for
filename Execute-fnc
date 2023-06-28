@@ -1,0 +1,229 @@
+#!/bin/bash
+#
+# this is a template: fill in with your input parameters
+#
+# SET model label:
+md=Test
+echo '#'
+echo '#####  Data: '$md
+#
+# SET working directory (contains exec files s & lists):
+WKD=/..path../wkdir     
+echo '#'
+echo '#####  Working dir: '$WKD
+#
+# Create target directories:    
+#
+outdir=$WKD/Results-$md                  
+Norms=$outdir/dir1/
+Moms=$outdir/dir2/
+EXs=$outdir/dir3/
+EPs=$outdir/dir4/
+#
+echo '#'
+echo '#####  Create output dir:'
+echo '#'
+echo $outdir
+echo $Norms
+echo $Moms
+echo $EXs
+echo $EPs
+#
+mkdir $outdir
+mkdir $Norms
+mkdir $Moms
+mkdir $EXs
+mkdir $EPs
+#
+####################  Input
+#
+echo '# '
+echo '#####  Set input '
+echo '#'
+#
+# SET the list (1-column) of input files with paths:
+list=$WKD/ls_ncfiles
+echo 'list of nc files: '$list
+#
+# SET the list (2-column) of begin and end year of each input file (as YYYY_i YYYY_f):
+dates=$WKD/ls_ncdates
+echo 'list of dates: '$dates
+#
+# SET the names of dimensions as stored in the nc files:
+dtime=time                                                                 # time 
+dlon=lon                                                                   # longitude 
+dlat=lat                                                                   # latitude 
+echo 'Dimensions: '$dtime, $dlon, $dlat
+#
+# SET the names of required variables as stored in the nc files:
+vlon=lon                                                                   # longitude 
+vlat=lat                                                                   # latitude
+var=tasmax                                                                 # temperature
+echo 'Variables: '$vlon, $vlat, $var
+#
+# SET data calendar via 'ileap' index:
+# ileap = 0 / 1 / 2 for 360_days / 365_days (non-leap) / 365/366_days (leap)
+ileap=1                                         
+if [ $ileap == 0 ] ; then echo 'Calendar: 360_days'
+elif [ $ileap == 1 ] ; then echo 'Calendar: 365_days (no leap)'
+elif [ $ileap == 2 ] ; then echo 'Calendar: 365/366_days (leap)'
+else echo 'Error: Calendar undefined, set integer ileap in [0,2]. Exit'; exit
+fi
+#
+# SET dev=t to compute moments and extremes on daily anomalies (subtract day-of-the-year normals);
+# dev=f to skip normals and use absolute values
+dev=t                                                 
+if [ $dev == 't' ] ; then echo 'Turn data into anomalies: compute normals'
+elif [ $dev == 'f' ] ; then echo 'Use absolute values: skip normals'
+fi
+#         
+########################################   Day-of-the-year normals
+if [ $dev == 't' ] ; then 
+echo '#'
+echo '#####  Computing day-of-the-year normals'
+echo '#'
+#
+# SET reference period:
+yn1=1851
+yn2=1900
+echo 'Period: '$yn1'-'$yn2
+#
+# SET filename (max a20) of normals:
+nrfile=name1
+echo 'Output: '$Norms$nrfile'_*'
+echo '...'
+#
+# Pass input to 'Climax-fnc':
+cat > inp_nn << EOF 
+$list
+$dates
+$dtime
+$dlon
+$dlat
+$vlon
+$vlat
+$var
+$ileap
+$yn1 $yn2
+$Norms
+$nrfile
+EOF
+# Start 'Climax-fnc':
+$WKD/Climax-fnc  <inp_nn #> out_nn  
+echo 'done!'
+fi
+#
+########################################   Central moments
+#
+echo '#'
+echo '#####  Computing moments'
+echo '#'
+#
+# SET period for calculation of moments:
+yc1=1851 
+yc2=2100 
+echo 'Period: '$yc1'-'$yc2
+#
+# SET data sample via sm = 0 / 1 / 2 / 3 / 4 / for full year / mam / jja / son / djf
+sm=0        
+if [ $sm == 0 ] ; then echo 'Data sample: full year'; sample=fyr
+elif [ $sm == 1 ] ; then echo 'Data sample: MAM'; sample=mam
+elif [ $sm == 2 ] ; then echo 'Data sample: JJA'; sample=jja
+elif [ $sm == 3 ] ; then echo 'Data sample: SON'; sample=son
+elif [ $sm == 4 ] ; then echo 'Data sample: DJF'; sample=djf
+else echo 'Error: Data sample undefined, set integer sm in [0,4]. Exit'; exit
+fi
+#
+# SET filename (max a20) of moments :
+cmfile=name2
+echo 'Output: '$Moms$cmfile'-'$sample'_*'
+echo '...'
+#
+# Pass input to 'CMoments-fnc':
+cat > inp_mm << EOF 
+$list
+$dates
+$dtime
+$dlon
+$dlat
+$vlon
+$vlat
+$var
+$ileap
+$yc1 $yc2
+$sm
+$dev
+$Norms
+$nrfile
+$Moms
+$cmfile
+EOF
+# Start 'CMoments-fnc':
+$WKD/CMoments-fnc <inp_mm #> out_mm  
+echo 'done!'
+#
+########################################   Extremes & probabilities
+#
+echo '#'
+echo '#####  Computing extremes '
+echo '#'
+#
+# SET period for calculation of extremes: 
+yx1=1851 #
+yx2=2100 #
+echo 'Period: '$yx1'-'$yx2
+#
+# SET data sample: sx = 0 / 1 / 2 / 3 / 4 for full year / mam / jja / son / djf
+sx=0        
+if [ $sx == 0 ] ; then echo 'Data sample: full year'; sample=fyr
+elif [ $sx == 1 ] ; then echo 'Data sample: MAM'; sample=mam
+elif [ $sx == 2 ] ; then echo 'Data sample: JJA'; sample=jja
+elif [ $sx == 3 ] ; then echo 'Data sample: SON'; sample=son
+elif [ $sx == 4 ] ; then echo 'Data sample: DJF'; sample=djf
+else echo 'Error: Data sample undefined, set integer sx in [0,4]. Exit'; exit
+fi
+#
+# SET period for reference quantiles:
+yq1=1851
+yq2=1900
+echo 'Quantiles referenced to: '$yq1'-'$yq2
+#
+# SET filename (max a20) of extreme values 
+exfile=name3
+# SET filename (max a20) of exceedance probabilities 
+epfile=name4
+echo 'Output: '$EXs$exfile'-'$sample'_*'
+echo '        '$EPs$epfile'-'$sample'_*'
+echo '...'
+#
+# Pass input to 'EXtremes-fnc':
+cat > inp_ee << EOF 
+$list
+$dates
+$dtime
+$dlon
+$dlat
+$vlon
+$vlat
+$var
+$ileap
+$yx1 $yx2
+$sx
+$yq1 $yq2
+$dev
+$Norms
+$nrfile
+$EXs
+$exfile
+$EPs
+$epfile
+EOF
+# Start 'EXtremes-fnc':
+$WKD/EXtremes-fnc  <inp_ee #> out_ee 
+echo 'done!'
+#
+echo '#'
+echo '#####  END'
+echo '#'
+#
+########################################   End
